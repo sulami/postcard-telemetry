@@ -1,0 +1,10 @@
+[package]
+name = "embedded-imu"
+version = "0.1.0"
+edition = "2021"
+description = "Toolkit for working with embedded IMUs (inertial measurement units)"
+license = "Apache-2.0"
+repository = "https://github.com/sulami/embedded-imu"
+
+[dependencies]
+nalgebra = { version = "0.32", default_features = false, features = [ "alloc", "libm" ] }
