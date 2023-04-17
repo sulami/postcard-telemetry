@@ -1,34 +1,28 @@
 use nalgebra::SMatrix;
 
-type State = SMatrix<f32, 2, 1>;
-type Covariance = SMatrix<f32, 2, 2>;
-type Prediction = SMatrix<f32, 2, 2>;
-type Control = SMatrix<f32, 2, 1>;
-type Noise = SMatrix<f32, 2, 2>;
-type Measurement = SMatrix<f32, 2, 2>;
-type Reading = SMatrix<f32, 2, 1>;
-type Inputs = SMatrix<f32, 1, 1>;
-
-type Estimate = (State, Covariance);
-
-/// A classic Kalman filter.
-pub struct KalmanFilter {
-    prediction: Prediction,
-    measurement: Measurement,
-    control: Control,
-    sensor_noise: Noise,
-    uncertainty: Noise,
+/// A classic Kalman filter with:
+/// - S state variables
+/// - I active inputs
+/// - R sensor readings
+///
+/// Based on those dimensions, all other dimensions are fixed.
+pub struct KalmanFilter<const S: usize, const I: usize, const R: usize> {
+    prediction: SMatrix<f32, S, S>,
+    measurement: SMatrix<f32, R, S>,
+    control: SMatrix<f32, S, I>,
+    sensor_noise: SMatrix<f32, R, R>,
+    uncertainty: SMatrix<f32, S, S>,
 }
 
-impl KalmanFilter {
+impl<const S: usize, const I: usize, const R: usize> KalmanFilter<S, I, R> {
     /// Construct a new filter. Takes a few static matrices that it
     /// holds on to.
     pub fn new(
-        prediction: Prediction,
-        measurement: Measurement,
-        control: Control,
-        sensor_noise: Noise,
-        uncertainty: Noise,
+        prediction: SMatrix<f32, S, S>,
+        measurement: SMatrix<f32, R, S>,
+        control: SMatrix<f32, S, I>,
+        sensor_noise: SMatrix<f32, R, R>,
+        uncertainty: SMatrix<f32, S, S>,
     ) -> Self {
         Self {
             prediction,
@@ -42,7 +36,12 @@ impl KalmanFilter {
     /// Based in the static matrices, the current state estimate, the
     /// current control inputs, and a sensor reading generate a new
     /// state estimate.
-    pub fn next(&self, current: &Estimate, inputs: &Inputs, sensor_reading: &Reading) -> Estimate {
+    pub fn next(
+        &self,
+        current: &(SMatrix<f32, S, 1>, SMatrix<f32, S, S>),
+        inputs: &SMatrix<f32, I, 1>,
+        sensor_reading: &SMatrix<f32, R, 1>,
+    ) -> (SMatrix<f32, S, 1>, SMatrix<f32, S, S>) {
         let (current_estimate, covariance) = current;
 
         // A prediction.
@@ -68,7 +67,9 @@ impl KalmanFilter {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use libc_print::std_name::dbg;
+    use nalgebra::{Matrix2, Vector1, Vector2};
 
     #[test]
     fn try_out() {
@@ -76,23 +77,23 @@ mod tests {
         let delta_t = 1.0;
 
         // Active control inputs.
-        let acceleration = Inputs::new(0.5);
+        let acceleration = Vector1::new(0.5);
 
         // Uncertainty in our model, and in the sensors.
-        let world_slop = Noise::from_diagonal_element(1.0);
-        let sensor_noise = Noise::from_diagonal_element(0.5);
+        let world_slop = Matrix2::from_diagonal_element(1.0);
+        let sensor_noise = Matrix2::from_diagonal_element(0.5);
 
         // How we expect the estimate to change.
-        let prediction = Prediction::new(1.0, delta_t, 0.0, 1.0);
+        let prediction = Matrix2::new(1.0, delta_t, 0.0, 1.0);
         // How acceleration affects out estimate.
-        let control = Control::new((delta_t * delta_t) / 2.0, delta_t);
+        let control = Vector2::new((delta_t * delta_t) / 2.0, delta_t);
         // How to convert from our model to expected sensor readings.
-        let measurement = Measurement::identity();
+        let measurement = Matrix2::identity();
 
         // Initial estimate.
-        let current_estimate = State::new(1.0, 2.0);
-        let covariance = Covariance::new(1.0, 0.0, 0.0, 1.0);
-        let sensor_reading = Reading::new(2.5, 2.0);
+        let current_estimate = Vector2::new(1.0, 2.0);
+        let covariance = Matrix2::new(1.0, 0.0, 0.0, 1.0);
+        let sensor_reading = Vector2::new(2.5, 2.0);
 
         let filter = KalmanFilter::new(prediction, measurement, control, sensor_noise, world_slop);
         dbg!(filter.next(
