@@ -1,4 +1,4 @@
 #![no_std]
 
-mod filter;
-mod kalman;
+pub mod filter;
+pub mod kalman;

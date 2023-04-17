@@ -7,4 +7,5 @@ license = "Apache-2.0"
 repository = "https://github.com/sulami/embedded-imu"
 
 [dependencies]
+libc-print = "0.1.21"
 nalgebra = { version = "0.32", default_features = false, features = [ "alloc", "libm" ] }
