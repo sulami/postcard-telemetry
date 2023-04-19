@@ -1,12 +1,15 @@
+//! Filters for data
+
+use num_traits::float::Float;
+
 /// Apply a high-pass filter to `seq` based on the time `dt` between
 /// the data points and the RC constant `rc`.
-pub fn high_pass(seq: &mut [f32], dt: f32, rc: f32) {
+pub fn high_pass<T: Float>(seq: &mut [T], dt: T, rc: T) {
     if seq.is_empty() {
         return;
     }
 
-    assert!(0.0 < dt, "dt needs to be > 0");
-    assert!(dt.is_finite(), "dt cannot be infinite");
+    assert!(dt.is_normal(), "dt needs to be > 0");
 
     let alpha = rc / (rc + dt);
     let mut previous_original = seq[0];
@@ -20,16 +23,15 @@ pub fn high_pass(seq: &mut [f32], dt: f32, rc: f32) {
 
 /// Apply low-pass filter to `seq` based on the time `dt` between
 /// the data points and the RC constant `rc`.
-pub fn low_pass(seq: &mut [f32], dt: f32, rc: f32) {
+pub fn low_pass<T: Float>(seq: &mut [T], dt: T, rc: T) {
     if seq.is_empty() {
         return;
     }
 
-    assert!(0.0 < dt, "dt needs to be > 0");
-    assert!(dt.is_finite(), "dt cannot be infinite");
+    assert!(dt.is_normal(), "dt needs to be > 0");
 
     let alpha = dt / (rc + dt);
-    seq[0] *= alpha;
+    seq[0] = seq[0] * alpha;
 
     for i in 1..seq.len() {
         seq[i] = seq[i - 1] + alpha * (seq[i] - seq[i - 1]);
