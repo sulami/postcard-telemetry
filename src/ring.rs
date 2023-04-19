@@ -66,7 +66,7 @@ impl<T: Copy + Default, const N: usize> IntoIterator for Ring<T, N> {
         RingIter {
             buf: self.buf,
             left: if self.filled { self.head } else { 0 },
-            right: self.head,
+            right: if N == 0 { 0 } else { (N + self.head - 1) % N },
             finished: self.is_empty(),
         }
     }
@@ -90,10 +90,29 @@ impl<T: Copy + Default, const N: usize> Iterator for RingIter<T, N> {
             None
         } else {
             let item = self.buf[self.left];
-            self.left = (self.left + 1) % N;
             if self.left == self.right {
                 self.finished = true;
             }
+            self.left = (self.left + 1) % N;
+            Some(item)
+        }
+    }
+}
+
+impl<T: Copy + Default, const N: usize> DoubleEndedIterator for RingIter<T, N> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.finished {
+            None
+        } else {
+            let item = self.buf[self.right];
+            if self.left == self.right {
+                self.finished = true;
+            }
+            self.right = if self.right == 0 {
+                N - 1
+            } else {
+                self.right - 1
+            };
             Some(item)
         }
     }
@@ -105,91 +124,158 @@ mod tests {
 
     #[test]
     fn test_size() {
-        let ring: Ring<f32, 64> = Ring::new();
+        let ring: Ring<i32, 64> = Ring::new();
         assert_eq!(ring.len(), 0);
     }
 
     #[test]
     fn test_is_empty() {
-        let ring: Ring<f32, 64> = Ring::new();
+        let ring: Ring<i32, 64> = Ring::new();
         assert!(ring.is_empty());
     }
 
     #[test]
     fn test_push() {
-        let mut ring: Ring<f32, 64> = Ring::new();
-        ring.push(3.14);
+        let mut ring: Ring<i32, 64> = Ring::new();
+        ring.push(314);
         assert_eq!(ring.len(), 1);
     }
 
     #[test]
     fn test_push_on_zero_size() {
-        let mut ring: Ring<f32, 0> = Ring::new();
-        ring.push(3.14);
+        let mut ring: Ring<i32, 0> = Ring::new();
+        ring.push(314);
         assert_eq!(ring.len(), 0);
     }
 
     #[test]
     fn test_push_wrapping() {
-        let mut ring: Ring<f32, 2> = Ring::new();
-        ring.push(3.14);
+        let mut ring: Ring<i32, 2> = Ring::new();
+        ring.push(314);
         assert_eq!(ring.len(), 1);
-        ring.push(6.28);
+        ring.push(628);
         assert_eq!(ring.len(), 2);
-        ring.push(42.);
+        ring.push(42);
         assert_eq!(ring.len(), 2);
     }
 
     #[test]
+    fn test_into_iter_zero_size() {
+        let ring: Ring<i32, 0> = Ring::new();
+        let mut iter = ring.into_iter();
+        assert!(iter.next().is_none());
+        assert!(iter.next_back().is_none());
+    }
+
+    #[test]
     fn test_into_iter_empty() {
-        let ring: Ring<f32, 3> = Ring::new();
+        let ring: Ring<i32, 3> = Ring::new();
         assert!(ring.into_iter().next().is_none());
     }
 
     #[test]
     fn test_into_iter_one_item() {
-        let mut ring: Ring<f32, 3> = Ring::new();
-        ring.push(1.);
+        let mut ring: Ring<i32, 3> = Ring::new();
+        ring.push(1);
         let mut iter = ring.into_iter();
-        assert_eq!(iter.next(), Some(1.));
+        assert_eq!(iter.next(), Some(1));
         assert_eq!(iter.next(), None);
     }
 
     #[test]
     fn test_into_iter_partially_filled() {
-        let mut ring: Ring<f32, 3> = Ring::new();
-        ring.push(1.);
-        ring.push(2.);
+        let mut ring: Ring<i32, 3> = Ring::new();
+        ring.push(1);
+        ring.push(2);
         let mut iter = ring.into_iter();
-        assert_eq!(iter.next(), Some(1.));
-        assert_eq!(iter.next(), Some(2.));
+        assert_eq!(iter.next(), Some(1));
+        assert_eq!(iter.next(), Some(2));
         assert_eq!(iter.next(), None);
     }
 
     #[test]
     fn test_into_iter_exactly_filled() {
-        let mut ring: Ring<f32, 3> = Ring::new();
-        ring.push(1.);
-        ring.push(2.);
-        ring.push(3.);
+        let mut ring: Ring<i32, 3> = Ring::new();
+        ring.push(1);
+        ring.push(2);
+        ring.push(3);
         let mut iter = ring.into_iter();
-        assert_eq!(iter.next(), Some(1.));
-        assert_eq!(iter.next(), Some(2.));
-        assert_eq!(iter.next(), Some(3.));
+        assert_eq!(iter.next(), Some(1));
+        assert_eq!(iter.next(), Some(2));
+        assert_eq!(iter.next(), Some(3));
         assert_eq!(iter.next(), None);
     }
 
     #[test]
     fn test_into_iter_wrapped_around() {
-        let mut ring: Ring<f32, 3> = Ring::new();
-        ring.push(1.);
-        ring.push(2.);
-        ring.push(3.);
-        ring.push(4.);
+        let mut ring: Ring<i32, 3> = Ring::new();
+        ring.push(1);
+        ring.push(2);
+        ring.push(3);
+        ring.push(4);
         let mut iter = ring.into_iter();
-        assert_eq!(iter.next(), Some(2.));
-        assert_eq!(iter.next(), Some(3.));
-        assert_eq!(iter.next(), Some(4.));
+        assert_eq!(iter.next(), Some(2));
+        assert_eq!(iter.next(), Some(3));
+        assert_eq!(iter.next(), Some(4));
         assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_into_iter_reverse_empty() {
+        let ring: Ring<i32, 3> = Ring::new();
+        let mut iter = ring.into_iter().rev();
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_into_iter_reverse_partially_filled() {
+        let mut ring: Ring<i32, 3> = Ring::new();
+        ring.push(1);
+        ring.push(2);
+        let mut iter = ring.into_iter().rev();
+        assert_eq!(iter.next(), Some(2));
+        assert_eq!(iter.next(), Some(1));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_into_iter_reverse_exactly_filled() {
+        let mut ring: Ring<i32, 3> = Ring::new();
+        ring.push(1);
+        ring.push(2);
+        ring.push(3);
+        let mut iter = ring.into_iter().rev();
+        assert_eq!(iter.next(), Some(3));
+        assert_eq!(iter.next(), Some(2));
+        assert_eq!(iter.next(), Some(1));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_into_iter_reverse_wrapped_around() {
+        let mut ring: Ring<i32, 3> = Ring::new();
+        ring.push(1);
+        ring.push(2);
+        ring.push(3);
+        ring.push(4);
+        let mut iter = ring.into_iter().rev();
+        assert_eq!(iter.next(), Some(4));
+        assert_eq!(iter.next(), Some(3));
+        assert_eq!(iter.next(), Some(2));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_into_iter_meet_in_the_middle() {
+        let mut ring: Ring<i32, 3> = Ring::new();
+        ring.push(1);
+        ring.push(2);
+        ring.push(3);
+        ring.push(4);
+        let mut iter = ring.into_iter();
+        assert_eq!(iter.next(), Some(2));
+        assert_eq!(iter.next_back(), Some(4));
+        assert_eq!(iter.next(), Some(3));
+        assert_eq!(iter.next_back(), None);
     }
 }
