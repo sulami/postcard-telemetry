@@ -4,6 +4,21 @@
 /// the oldest element gets overwritten. The buffer is aware of how
 /// full it is, so [`Ring::len`] and [`Ring::is_empty`] will report
 /// `0` and `true` for a freshly constructed buffer.
+///
+/// ```
+/// # use crate::ring::Ring;
+/// // Keep up to 64 f32s.
+/// let mut buf: Ring<f32, 64> = Ring::new();
+///
+/// buf.push(3.14);
+/// buf.push(6.28);
+///
+/// let mut iter = buf.into_iter();
+/// assert_eq!(iter.next(), Some(3.14));
+/// assert_eq!(iter.next(), Some(6.28));
+/// assert_eq!(iter.next(), None);
+/// ```
+#[derive(Clone)]
 pub struct Ring<T: Copy + Default, const N: usize> {
     buf: [T; N],
     head: usize,
@@ -26,6 +41,11 @@ impl<T: Copy + Default, const N: usize> Ring<T, N> {
         if self.head == 0 {
             self.filled = true;
         }
+    }
+
+    /// Returns `true` if the buffer has been filled completely.
+    pub fn is_saturated(&self) -> bool {
+        self.filled
     }
 
     /// Returns the length of the ring buffer. Partially filled
@@ -56,7 +76,7 @@ impl<T: Copy + Default, const N: usize> Default for Ring<T, N> {
     }
 }
 
-impl<T: Copy + Default, const N: usize> IntoIterator for Ring<T, N> {
+impl<T: Copy + Default, const N: usize> IntoIterator for &Ring<T, N> {
     type Item = T;
     type IntoIter = RingIter<T, N>;
 
@@ -277,5 +297,17 @@ mod tests {
         assert_eq!(iter.next_back(), Some(4));
         assert_eq!(iter.next(), Some(3));
         assert_eq!(iter.next_back(), None);
+    }
+
+    #[test]
+    fn test_is_saturated() {
+        let mut ring: Ring<i32, 2> = Ring::new();
+        assert!(!ring.is_saturated());
+        ring.push(1);
+        assert!(!ring.is_saturated());
+        ring.push(2);
+        assert!(ring.is_saturated());
+        ring.push(3);
+        assert!(ring.is_saturated());
     }
 }
