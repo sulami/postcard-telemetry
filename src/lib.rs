@@ -6,6 +6,9 @@
 //!
 //! The feature set and implementations are heavily opinionated.
 
+#[cfg(feature = "print")]
+pub use libc_print::std_name as print;
+
 pub mod filter;
 pub mod kalman;
 pub mod ring;
