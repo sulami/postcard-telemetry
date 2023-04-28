@@ -40,6 +40,7 @@ impl<'a, const N: usize> TelemetryReporter<'a, N> {
     /// Record a data point. Returns `true` if recording has been
     /// successful. Will return `false` if recorder capacity has been
     /// reached, and not record the supplied value.
+    #[must_use]
     pub fn record(&mut self, name: &'a str, value: f32) -> bool {
         let result = self.telemetry.insert(name, value);
         result.is_ok()
@@ -51,6 +52,7 @@ impl<'a, const N: usize> TelemetryReporter<'a, N> {
     /// most likely due to a buffer that's too small. Does not clear
     /// records if reporting failed, so that it can be retried with a
     /// larger buffer.
+    #[must_use]
     pub fn report(&mut self, buf: &mut [u8]) -> bool {
         let ser_result = to_slice_cobs(&self.telemetry, buf);
         if ser_result.is_ok() {

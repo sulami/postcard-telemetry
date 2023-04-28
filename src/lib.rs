@@ -11,6 +11,8 @@
 //! - The primary numerical data type is [`f32`], which is precise
 //!   enough for most applications.
 
+pub use defmt;
+
 #[cfg(feature = "print")]
 pub use libc_print::std_name as print;
 

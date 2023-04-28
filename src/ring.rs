@@ -6,7 +6,7 @@
 /// `0` and `true` for a freshly constructed buffer.
 ///
 /// ```
-/// # use crate::ring::Ring;
+/// # use embedded_imu::ring::Ring;
 /// // Keep up to 64 f32s.
 /// let mut buf: Ring<f32, 64> = Ring::new();
 ///
