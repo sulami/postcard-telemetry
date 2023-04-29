@@ -22,6 +22,8 @@ pub struct KalmanFilter<const S: usize, const I: usize, const R: usize> {
     control: SMatrix<f32, S, I>,
     sensor_noise: SMatrix<f32, R, R>,
     uncertainty: SMatrix<f32, S, S>,
+    pub estimate: SMatrix<f32, S, 1>,
+    pub covariance: SMatrix<f32, S, S>,
 }
 
 impl<const S: usize, const I: usize, const R: usize> KalmanFilter<S, I, R> {
@@ -33,54 +35,47 @@ impl<const S: usize, const I: usize, const R: usize> KalmanFilter<S, I, R> {
         control: SMatrix<f32, S, I>,
         sensor_noise: SMatrix<f32, R, R>,
         uncertainty: SMatrix<f32, S, S>,
+        initial_estimate: SMatrix<f32, S, 1>,
+        initial_covariance: SMatrix<f32, S, S>,
     ) -> Self {
+        let estimate = prediction * initial_estimate + control * SMatrix::<f32, I, 1>::zeros();
+        let covariance = prediction * initial_covariance * prediction.transpose() + uncertainty;
         Self {
             prediction,
             measurement,
             control,
             sensor_noise,
             uncertainty,
+            estimate,
+            covariance,
         }
-    }
-
-    /// Run the initial predection cycle at t = 0;
-    pub fn init(
-        &self,
-        (previous_estimate, previous_covariance): &(SMatrix<f32, S, 1>, SMatrix<f32, S, S>),
-    ) -> (SMatrix<f32, S, 1>, SMatrix<f32, S, S>) {
-        let next_estimate =
-            self.prediction * previous_estimate + self.control * SMatrix::<f32, I, 1>::zeros();
-        let next_covariance =
-            self.prediction * previous_covariance * self.prediction.transpose() + self.uncertainty;
-        (next_estimate, next_covariance)
     }
 
     /// Based in the static matrices, the current state estimate, the
     /// current control inputs, and a sensor reading generate a new
     /// state estimate.
     pub fn next(
-        &self,
-        (previous_estimate, previous_covariance): &(SMatrix<f32, S, 1>, SMatrix<f32, S, S>),
+        &mut self,
         inputs: &SMatrix<f32, I, 1>,
         sensor_readings: &SMatrix<f32, R, 1>,
     ) -> (SMatrix<f32, S, 1>, SMatrix<f32, S, S>) {
-        let kalman_gain = previous_covariance
+        let kalman_gain = self.covariance
             * self.measurement.transpose()
-            * (self.measurement * previous_covariance * self.measurement.transpose()
+            * (self.measurement * self.covariance * self.measurement.transpose()
                 + self.sensor_noise)
                 .try_inverse()
                 .unwrap();
 
-        // A prediction.
-        let current_estimate = previous_estimate
-            + kalman_gain * (sensor_readings - self.measurement * previous_estimate);
-        let current_covariance = (SMatrix::<f32, S, S>::identity()
-            - kalman_gain * self.measurement)
-            * previous_covariance;
+        let current_estimate =
+            self.estimate + kalman_gain * (sensor_readings - self.measurement * self.estimate);
+        let current_covariance =
+            (SMatrix::<f32, S, S>::identity() - kalman_gain * self.measurement) * self.covariance;
 
         let predicted_state = self.prediction * current_estimate + self.control * inputs;
         let predicted_covariance =
             self.prediction * current_covariance * self.prediction.transpose() + self.uncertainty;
+        self.estimate = predicted_state;
+        self.covariance = predicted_covariance;
         (predicted_state, predicted_covariance)
     }
 }
@@ -124,15 +119,17 @@ mod tests {
 
         // Initial estimate. Bias towards measurements because we're
         // guessing the initial state.
-        let current_estimate = Vector2::zeros();
-        let covariance = Matrix2::new(500.0, 0.0, 0.0, 500.00);
+        let initial_estimate = Vector2::zeros();
+        let initial_covariance = Matrix2::new(500.0, 0.0, 0.0, 500.00);
 
-        let filter = KalmanFilter::new(
+        let mut filter = KalmanFilter::new(
             prediction,
             measurement,
             control,
             sensor_noise,
             estimate_uncertainty,
+            initial_estimate,
+            initial_covariance,
         );
 
         // Active control inputs and sensor readings.
@@ -170,20 +167,10 @@ mod tests {
             (Vector1::new(39.94 - 9.81), Vector1::new(787.22)),
         ];
 
-        let mut current = (current_estimate, covariance);
+        let mut current = (filter.estimate, filter.covariance);
 
-        // Zeroeth iteration.
-        current = filter.init(&current);
-
-        // First iteration.
-        current = filter.next(&current, &frames[0].0, &frames[0].1);
-
-        // Second iteration.
-        current = filter.next(&current, &frames[1].0, &frames[1].1);
-
-        // Remaining iterations.
-        for (input, readings) in frames.iter().skip(2) {
-            current = filter.next(&current, &input, &readings);
+        for (input, readings) in frames {
+            current = filter.next(&input, &readings);
         }
 
         let (estimate, _) = current;
@@ -287,14 +274,11 @@ mod tests {
         ) * control_error_stddev
             * control_error_stddev;
         let r = Matrix2::from_diagonal_element(sensor_error_stddev * sensor_error_stddev);
-        let current_estimate = Vector6::zeros();
-        let covariance = Matrix6::from_diagonal_element(500.);
+        let initial_estimate = Vector6::zeros();
+        let initial_covariance = Matrix6::from_diagonal_element(500.);
         let h = SMatrix::<f32, 2, 6>::new(1., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0.);
         let b = Matrix6::identity();
-        let filter = KalmanFilter::new(f, h, b, r, q);
-
-        let mut current = (current_estimate, covariance);
-        current = filter.init(&current);
+        let mut filter = KalmanFilter::new(f, h, b, r, q, initial_estimate, initial_covariance);
 
         let frames = [
             Vector2::new(301.5, -401.46),
@@ -334,9 +318,10 @@ mod tests {
             Vector2::new(20.87, 298.77),
         ];
 
+        let mut current = (filter.estimate, filter.covariance);
         for readings in frames {
             let inputs = Vector6::zeros();
-            current = filter.next(&current, &inputs, &readings);
+            current = filter.next(&inputs, &readings);
         }
 
         // NB There are some rounding errors here, but they are small
