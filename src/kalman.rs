@@ -69,7 +69,7 @@ impl<const S: usize, const I: usize, const R: usize> KalmanFilter<S, I, R> {
         let current_estimate =
             self.estimate + kalman_gain * (sensor_readings - self.measurement * self.estimate);
         let current_covariance =
-            (SMatrix::<f32, S, S>::identity() - kalman_gain * self.measurement) * self.covariance;
+            (SMatrix::identity() - kalman_gain * self.measurement) * self.covariance;
 
         let predicted_state = self.prediction * current_estimate + self.control * inputs;
         let predicted_covariance =

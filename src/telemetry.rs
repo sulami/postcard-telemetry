@@ -14,23 +14,59 @@
 //! 3. Towards the end of every tick, call
 //!    [`TelemetryReporter::report`] to format the data, and push it
 //!    out to mission control. This also clears all data.
-//!
-//! Ideally every data point should be reported on every tick.
-//!
-//! As other modules in this crate, this is somewhat opinionated and
-//! only supports [`f32`] data points for now.
 
 use heapless::LinearMap;
 use postcard::to_slice_cobs;
+use serde::Serialize;
+
+/// A single data point.
+#[derive(Debug, Clone, Copy)]
+pub enum DataPoint {
+    F32(f32),
+    I32(i32),
+    U32(u32),
+}
+
+impl From<f32> for DataPoint {
+    fn from(value: f32) -> Self {
+        Self::F32(value)
+    }
+}
+
+impl From<i32> for DataPoint {
+    fn from(value: i32) -> Self {
+        Self::I32(value)
+    }
+}
+
+impl From<u32> for DataPoint {
+    fn from(value: u32) -> Self {
+        Self::U32(value)
+    }
+}
+
+impl Serialize for DataPoint {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        match self {
+            Self::F32(value) => serializer.serialize_f32(*value),
+            Self::I32(value) => serializer.serialize_i32(*value),
+            Self::U32(value) => serializer.serialize_u32(*value),
+        }
+    }
+}
 
 /// A global telemetry reporter with a static size of data points.
 /// Once the reporter capacity has been reached, additional data
 /// points will be silently dropped.
 pub struct TelemetryReporter<'a, const N: usize> {
-    telemetry: LinearMap<&'a str, f32, N>,
+    telemetry: LinearMap<&'a str, DataPoint, N>,
 }
 
 impl<'a, const N: usize> TelemetryReporter<'a, N> {
+    /// Create a new telemetry reporter.
     pub const fn new() -> Self {
         Self {
             telemetry: LinearMap::new(),
@@ -41,8 +77,8 @@ impl<'a, const N: usize> TelemetryReporter<'a, N> {
     /// successful. Will return `false` if recorder capacity has been
     /// reached, and not record the supplied value.
     #[must_use]
-    pub fn record(&mut self, name: &'a str, value: f32) -> bool {
-        let result = self.telemetry.insert(name, value);
+    pub fn record(&mut self, name: &'a str, value: impl Into<DataPoint> + Copy) -> bool {
+        let result = self.telemetry.insert(name, value.into());
         result.is_ok()
     }
 
@@ -73,9 +109,9 @@ mod tests {
     #[test]
     fn test_roundtrip() {
         let mut reporter = TelemetryReporter::<1>::new();
-        reporter.record("tau", 6.12);
+        assert!(reporter.record("tau", 6.12));
         let mut out = [0u8; 64];
-        reporter.report(&mut out);
+        assert!(reporter.report(&mut out));
         let parsed: LinearMap<&str, f32, 1> = from_bytes_cobs(&mut out).unwrap();
         assert_eq!(parsed.get("tau"), Some(&6.12));
     }
@@ -92,7 +128,7 @@ mod tests {
     #[test]
     fn test_clears_on_report() {
         let mut reporter = TelemetryReporter::<1>::new();
-        reporter.record("tau", 6.12);
+        assert!(reporter.record("tau", 6.12));
         let mut out = [0u8; 64];
         assert!(reporter.report(&mut out));
         assert_eq!(reporter.telemetry.len(), 0);
@@ -101,7 +137,7 @@ mod tests {
     #[test]
     fn test_does_not_clear_on_failure() {
         let mut reporter = TelemetryReporter::<1>::new();
-        reporter.record("tau", 6.12);
+        assert!(reporter.record("tau", 6.12));
         let mut out = [0u8; 1];
         assert!(!reporter.report(&mut out));
         assert_eq!(reporter.telemetry.len(), 1);
