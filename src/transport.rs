@@ -7,12 +7,13 @@
 use serde::Serialize;
 
 /// Serialize an item into a buffer for transmission.
-pub fn serialize(item: &impl Serialize, buf: &mut [u8]) -> bool {
+pub fn encode(item: &impl Serialize, buf: &mut [u8]) -> bool {
     postcard::to_slice_cobs(item, buf).is_ok()
 }
 
 #[cfg(feature = "std")]
-pub fn deserialize<'a, T>(buf: &'a mut [u8]) -> Result<T, postcard::Error>
+/// Deserialize an item from a buffer.
+pub fn decode<'a, T>(buf: &'a mut [u8]) -> Result<T, postcard::Error>
 where
     T: serde::Deserialize<'a>,
 {
@@ -30,7 +31,7 @@ mod tests {
         let mut buf = [0u8; 1024];
 
         let map = [("foo", 1.0f32), ("bar", 2.0), ("baz", 3.0)];
-        assert!(serialize(&map, &mut buf));
+        assert!(encode(&map, &mut buf));
         let result = from_bytes_cobs::<[(&str, f32); 3]>(&mut buf);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), map);
@@ -42,8 +43,8 @@ mod tests {
         let mut buf = [0u8; 1024];
 
         let map = [("foo", 1.0f32), ("bar", 2.0), ("baz", 3.0)];
-        assert!(serialize(&map, &mut buf));
-        let result = deserialize::<[(&str, f32); 3]>(&mut buf);
+        assert!(encode(&map, &mut buf));
+        let result = decode::<[(&str, f32); 3]>(&mut buf);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), map);
     }

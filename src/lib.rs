@@ -17,14 +17,13 @@
 #[cfg(feature = "std")]
 extern crate core;
 
-pub use defmt;
-
 #[cfg(feature = "print")]
 pub use libc_print::std_name as print;
 
 pub mod filter;
 pub mod kalman;
 pub mod log;
+pub mod pid;
 pub mod ring;
 pub mod telemetry;
 pub mod transport;
