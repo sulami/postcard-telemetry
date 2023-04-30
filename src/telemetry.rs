@@ -1,4 +1,4 @@
-//! Telemetry gathering and reporting
+//! Telemetry and logging
 //!
 //! This module provides functionality to gather and report telemetry
 //! data. The data format used is
@@ -16,11 +16,47 @@
 //!    out to mission control. This also clears all data.
 
 use heapless::LinearMap;
-use postcard::to_slice_cobs;
 use serde::Serialize;
 
+/// A global telemetry reporter with a static size of data points.
+/// Once the reporter capacity has been reached, additional data
+/// points will be silently dropped.
+pub struct TelemetryReporter<const N: usize> {
+    telemetry: TelemetryFrame<N>,
+}
+
+impl<const N: usize> TelemetryReporter<N> {
+    /// Create a new telemetry reporter.
+    pub const fn new() -> Self {
+        Self {
+            telemetry: LinearMap::new(),
+        }
+    }
+
+    /// Record a data point. Returns `true` if recording has been
+    /// successful. Will return `false` if recorder capacity has been
+    /// reached, and not record the supplied value.
+    #[must_use]
+    pub fn record(&mut self, name: &'static str, value: impl Into<DataPoint> + Copy) -> bool {
+        let result = self.telemetry.insert(name, value.into());
+        result.is_ok()
+    }
+
+    /// Report the current telemetry data. This will clear the
+    /// telemetry data.
+    #[must_use]
+    pub fn report(&mut self) -> TelemetryFrame<N> {
+        let rv = self.telemetry.clone();
+        self.telemetry.clear();
+        rv
+    }
+}
+
+/// A telemetry frame.
+pub type TelemetryFrame<const N: usize> = LinearMap<&'static str, DataPoint, N>;
+
 /// A single data point.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, PartialEq)]
 pub enum DataPoint {
     F32(f32),
     I32(i32),
@@ -45,75 +81,16 @@ impl From<u32> for DataPoint {
     }
 }
 
-impl Serialize for DataPoint {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::ser::Serializer,
-    {
-        match self {
-            Self::F32(value) => serializer.serialize_f32(*value),
-            Self::I32(value) => serializer.serialize_i32(*value),
-            Self::U32(value) => serializer.serialize_u32(*value),
-        }
-    }
-}
-
-/// A global telemetry reporter with a static size of data points.
-/// Once the reporter capacity has been reached, additional data
-/// points will be silently dropped.
-pub struct TelemetryReporter<'a, const N: usize> {
-    telemetry: LinearMap<&'a str, DataPoint, N>,
-}
-
-impl<'a, const N: usize> TelemetryReporter<'a, N> {
-    /// Create a new telemetry reporter.
-    pub const fn new() -> Self {
-        Self {
-            telemetry: LinearMap::new(),
-        }
-    }
-
-    /// Record a data point. Returns `true` if recording has been
-    /// successful. Will return `false` if recorder capacity has been
-    /// reached, and not record the supplied value.
-    #[must_use]
-    pub fn record(&mut self, name: &'a str, value: impl Into<DataPoint> + Copy) -> bool {
-        let result = self.telemetry.insert(name, value.into());
-        result.is_ok()
-    }
-
-    /// Write the recorded telemetry data to `buf`, encoded for
-    /// transmission to mission control. Also zero out all telemetry
-    /// stored in this tick. Returns `false` if serialisation failed,
-    /// most likely due to a buffer that's too small. Does not clear
-    /// records if reporting failed, so that it can be retried with a
-    /// larger buffer.
-    #[must_use]
-    pub fn report(&mut self, buf: &mut [u8]) -> bool {
-        let ser_result = to_slice_cobs(&self.telemetry, buf);
-        if ser_result.is_ok() {
-            self.telemetry.clear();
-            true
-        } else {
-            false
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use postcard::from_bytes_cobs;
 
     #[test]
     fn test_roundtrip() {
         let mut reporter = TelemetryReporter::<1>::new();
         assert!(reporter.record("tau", 6.12));
-        let mut out = [0u8; 64];
-        assert!(reporter.report(&mut out));
-        let parsed: LinearMap<&str, f32, 1> = from_bytes_cobs(&mut out).unwrap();
-        assert_eq!(parsed.get("tau"), Some(&6.12));
+        let result = reporter.report();
+        assert_eq!(*result.get("tau").unwrap(), 6.12.into());
     }
 
     #[test]
@@ -129,17 +106,7 @@ mod tests {
     fn test_clears_on_report() {
         let mut reporter = TelemetryReporter::<1>::new();
         assert!(reporter.record("tau", 6.12));
-        let mut out = [0u8; 64];
-        assert!(reporter.report(&mut out));
-        assert_eq!(reporter.telemetry.len(), 0);
-    }
-
-    #[test]
-    fn test_does_not_clear_on_failure() {
-        let mut reporter = TelemetryReporter::<1>::new();
-        assert!(reporter.record("tau", 6.12));
-        let mut out = [0u8; 1];
-        assert!(!reporter.report(&mut out));
-        assert_eq!(reporter.telemetry.len(), 1);
+        let _ = reporter.report();
+        assert!(reporter.telemetry.is_empty());
     }
 }
