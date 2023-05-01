@@ -18,6 +18,8 @@
 use heapless::LinearMap;
 use serde::Serialize;
 
+use crate::error::Error;
+
 /// A global telemetry reporter with a static size of data points.
 /// Once the reporter capacity has been reached, additional data
 /// points will be silently dropped.
@@ -36,10 +38,15 @@ impl<const N: usize> TelemetryReporter<N> {
     /// Record a data point. Returns `true` if recording has been
     /// successful. Will return `false` if recorder capacity has been
     /// reached, and not record the supplied value.
-    #[must_use]
-    pub fn record(&mut self, name: &'static str, value: impl Into<DataPoint> + Copy) -> bool {
-        let result = self.telemetry.insert(name, value.into());
-        result.is_ok()
+    pub fn record(
+        &mut self,
+        name: &'static str,
+        value: impl Into<DataPoint> + Copy,
+    ) -> Result<(), Error> {
+        self.telemetry
+            .insert(name, value.into())
+            .map(|_| ())
+            .map_err(|_| Error::Saturated)
     }
 
     /// Report the current telemetry data. This will clear the
@@ -88,24 +95,25 @@ mod tests {
     #[test]
     fn test_roundtrip() {
         let mut reporter = TelemetryReporter::<1>::new();
-        assert!(reporter.record("tau", 6.12));
+        reporter.record("tau", 6.12).unwrap();
         let result = reporter.report();
         assert_eq!(*result.get("tau").unwrap(), 6.12.into());
     }
 
     #[test]
-    fn test_graceful_when_full() {
+    fn test_graceful_when_full() -> Result<(), Error> {
         let mut reporter = TelemetryReporter::<1>::new();
-        assert!(reporter.record("tau", 6.12));
-        assert!(!reporter.record("pi", 3.14));
+        reporter.record("tau", 6.12)?;
+        assert!(matches!(reporter.record("pi", 3.14), Err(Error::Saturated)));
         assert_eq!(reporter.telemetry.len(), 1);
         assert!(reporter.telemetry.contains_key(&"tau"));
+        Ok(())
     }
 
     #[test]
     fn test_clears_on_report() {
         let mut reporter = TelemetryReporter::<1>::new();
-        assert!(reporter.record("tau", 6.12));
+        reporter.record("tau", 6.12).unwrap();
         let _ = reporter.report();
         assert!(reporter.telemetry.is_empty());
     }

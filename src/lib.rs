@@ -20,6 +20,7 @@ extern crate core;
 #[cfg(feature = "print")]
 pub use libc_print::std_name as print;
 
+pub mod error;
 pub mod filter;
 pub mod kalman;
 pub mod log;

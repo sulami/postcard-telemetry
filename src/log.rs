@@ -7,6 +7,8 @@
 use heapless::LinearMap;
 use serde::Serialize;
 
+use crate::error::Error;
+
 /// A log message.
 #[derive(Debug, Clone, Serialize)]
 pub struct LogMessage {
@@ -25,9 +27,15 @@ impl LogMessage {
         }
     }
 
-    pub fn with_field(mut self, name: &'static str, parameter: impl Into<LogParameter>) -> Self {
-        let _ = self.parameters.insert(name, parameter.into());
-        self
+    pub fn with_field(
+        mut self,
+        name: &'static str,
+        parameter: impl Into<LogParameter>,
+    ) -> Result<Self, Error> {
+        self.parameters
+            .insert(name, parameter.into())
+            .map(|_| self)
+            .map_err(|_| Error::Saturated)
     }
 }
 
@@ -78,7 +86,7 @@ impl std::fmt::Display for Level {
 }
 
 /// A log message parameter.
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize, PartialEq)]
 pub enum LogParameter {
     String(&'static str),
     Float(f32),
@@ -133,5 +141,32 @@ mod tests {
         assert_eq!(format!("{}", LogParameter::Float(1.0)), "1");
         assert_eq!(format!("{}", LogParameter::Integer(1)), "1");
         assert_eq!(format!("{}", LogParameter::UnsignedInteger(1)), "1");
+    }
+
+    #[test]
+    fn test_with_field() {
+        let message = LogMessage::new(Level::Info, "foo {bar}")
+            .with_field("bar", "baz")
+            .unwrap();
+        assert_eq!(message.parameters.len(), 1);
+        assert_eq!(message.parameters["bar"], LogParameter::String("baz"));
+    }
+
+    #[test]
+    fn test_with_field_saturated() -> Result<(), Error> {
+        let message = LogMessage::new(Level::Info, "foo {bar}")
+            .with_field("1", "baz")?
+            .with_field("2", "baz")?
+            .with_field("3", "baz")?
+            .with_field("4", "baz")?
+            .with_field("5", "baz")?
+            .with_field("6", "baz")?
+            .with_field("7", "baz")?
+            .with_field("8", "baz")?;
+        assert!(matches!(
+            message.with_field("9", "quox").unwrap_err(),
+            Error::Saturated
+        ));
+        Ok(())
     }
 }

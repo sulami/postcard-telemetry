@@ -6,18 +6,20 @@
 
 use serde::Serialize;
 
+use crate::error::Error;
+
 /// Serialize an item into a buffer for transmission.
-pub fn encode<'b>(item: &impl Serialize, buf: &'b mut [u8]) -> Result<&'b mut [u8], &'static str> {
-    postcard::to_slice_cobs(item, buf).map_err(|_| "failed to encode")
+pub fn encode<'b>(item: &impl Serialize, buf: &'b mut [u8]) -> Result<&'b mut [u8], Error> {
+    postcard::to_slice_cobs(item, buf).map_err(|_| Error::BufferTooSmall)
 }
 
 #[cfg(feature = "std")]
 /// Deserialize an item from a buffer.
-pub fn decode<'a, T>(buf: &'a mut [u8]) -> Result<T, postcard::Error>
+pub fn decode<'a, T>(buf: &'a mut [u8]) -> Result<T, Error>
 where
     T: serde::Deserialize<'a>,
 {
-    postcard::from_bytes_cobs(buf)
+    postcard::from_bytes_cobs(buf).map_err(|_| Error::InvalidData)
 }
 
 #[cfg(test)]
@@ -33,7 +35,6 @@ mod tests {
         let map = [("foo", 1.0f32), ("bar", 2.0), ("baz", 3.0)];
         assert!(encode(&map, &mut buf).is_ok());
         let result = from_bytes_cobs::<[(&str, f32); 3]>(&mut buf);
-        assert!(result.is_ok());
         assert_eq!(result.unwrap(), map);
     }
 
@@ -45,7 +46,6 @@ mod tests {
         let map = [("foo", 1.0f32), ("bar", 2.0), ("baz", 3.0)];
         assert!(encode(&map, &mut buf).is_ok());
         let result = decode::<[(&str, f32); 3]>(&mut buf);
-        assert!(result.is_ok());
         assert_eq!(result.unwrap(), map);
     }
 }
