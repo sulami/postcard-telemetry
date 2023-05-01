@@ -10,3 +10,16 @@ pub enum Error {
     /// An internal data structure was saturated.
     Saturated,
 }
+
+impl core::fmt::Display for Error {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::BufferTooSmall => write!(f, "buffer too small"),
+            Self::InvalidData => write!(f, "invalid data"),
+            Self::Saturated => write!(f, "saturated"),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for Error {}
