@@ -7,8 +7,8 @@
 use serde::Serialize;
 
 /// Serialize an item into a buffer for transmission.
-pub fn encode(item: &impl Serialize, buf: &mut [u8]) -> bool {
-    postcard::to_slice_cobs(item, buf).is_ok()
+pub fn encode<'b>(item: &impl Serialize, buf: &'b mut [u8]) -> Result<&'b mut [u8], &'static str> {
+    postcard::to_slice_cobs(item, buf).map_err(|_| "failed to encode")
 }
 
 #[cfg(feature = "std")]
@@ -31,7 +31,7 @@ mod tests {
         let mut buf = [0u8; 1024];
 
         let map = [("foo", 1.0f32), ("bar", 2.0), ("baz", 3.0)];
-        assert!(encode(&map, &mut buf));
+        assert!(encode(&map, &mut buf).is_ok());
         let result = from_bytes_cobs::<[(&str, f32); 3]>(&mut buf);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), map);
@@ -43,7 +43,7 @@ mod tests {
         let mut buf = [0u8; 1024];
 
         let map = [("foo", 1.0f32), ("bar", 2.0), ("baz", 3.0)];
-        assert!(encode(&map, &mut buf));
+        assert!(encode(&map, &mut buf).is_ok());
         let result = decode::<[(&str, f32); 3]>(&mut buf);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), map);
