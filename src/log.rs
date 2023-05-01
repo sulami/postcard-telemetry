@@ -7,9 +7,9 @@
 //! Use a log message like this:
 //!
 //! ```
-//! # use embedded_imu::log::{Level, LogMessage};
+//! # use embedded_imu::log::LogMessage;
 //! # fn main() -> Result<(), embedded_imu::error::Error> {
-//! let message = LogMessage::new(Level::Info, "The answer is {answer}")
+//! let message = LogMessage::info("The answer is {answer}")
 //!     .with_field("answer", 42)?;
 //! Ok(())
 //! # }
@@ -36,6 +36,26 @@ impl LogMessage {
             message,
             parameters: LinearMap::new(),
         }
+    }
+
+    /// Create a new log message with the [`Level::Debug`] level.
+    pub fn debug(message: &'static str) -> Self {
+        Self::new(Level::Debug, message)
+    }
+
+    /// Create a new log message with the [`Level::Info`] level.
+    pub fn info(message: &'static str) -> Self {
+        Self::new(Level::Info, message)
+    }
+
+    /// Create a new log message with the [`Level::Warning`] level.
+    pub fn warning(message: &'static str) -> Self {
+        Self::new(Level::Warning, message)
+    }
+
+    /// Create a new log message with the [`Level::Error`] level.
+    pub fn error(message: &'static str) -> Self {
+        Self::new(Level::Error, message)
     }
 
     /// Add a field to the log message.
