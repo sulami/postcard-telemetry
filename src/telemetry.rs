@@ -8,12 +8,29 @@
 //! [COBS](https://en.wikipedia.org/wiki/Consistent_Overhead_Byte_Stuffing)
 //! to deal with potentially unreliable connections.
 //!
+//! The reporter uses a fixed size linear map to store individual data
+//! points during a single telemetry frame. The size can be decided on
+//! at initialization.
+//!
 //! The model this is designed for works like this:
+//!
+//! ```
+//! # use embedded_imu::telemetry::{TelemetryReporter, DataPoint};
+//! # fn main() -> Result<(), embedded_imu::error::Error> {
+//! let mut reporter = TelemetryReporter::<32>::new();
+//! reporter.record("g", 9.81).unwrap();
+//! let report = reporter.report();
+//! // Send report somewhere
+//! # Ok(())
+//! # }
+//! ```
+//!
 //! 1. Setup a [`TelemetryReporter`].
-//! 2. During every tick, capture data points as they come up.
+//! 2. During every tick, record data points as they come up.
 //! 3. Towards the end of every tick, call
 //!    [`TelemetryReporter::report`] to format the data, and push it
-//!    out to mission control. This also clears all data.
+//!    out to mission control. This also clears all data, so the
+//!    reporter can be reused in a loop.
 
 use heapless::LinearMap;
 use serde::Serialize;
@@ -21,8 +38,8 @@ use serde::Serialize;
 use crate::error::Error;
 
 /// A global telemetry reporter with a static size of data points.
-/// Once the reporter capacity has been reached, additional data
-/// points will be silently dropped.
+/// Once the reporter capacity has been reached, no more data can be
+/// recorded until it is cleared.
 pub struct TelemetryReporter<const N: usize> {
     telemetry: TelemetryFrame<N>,
 }
@@ -35,9 +52,8 @@ impl<const N: usize> TelemetryReporter<N> {
         }
     }
 
-    /// Record a data point. Returns `true` if recording has been
-    /// successful. Will return `false` if recorder capacity has been
-    /// reached, and not record the supplied value.
+    /// Record a data point. Will return [`Error::Saturated`] if the
+    /// recorder is full.
     pub fn record(
         &mut self,
         name: &'static str,

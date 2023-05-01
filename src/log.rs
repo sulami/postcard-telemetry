@@ -11,9 +11,13 @@
 //! # fn main() -> Result<(), embedded_imu::error::Error> {
 //! let message = LogMessage::info("The answer is {answer}")
 //!     .with_field("answer", 42)?;
-//! Ok(())
+//! # Ok(())
 //! # }
 //! ```
+//!
+//! Log messages can have up to 8 named parameters bound. If trying to
+//! bind a ninth parameter, the [`Error::Saturated`] error is
+//! returned.
 
 use heapless::LinearMap;
 use serde::Serialize;
@@ -58,7 +62,8 @@ impl LogMessage {
         Self::new(Level::Error, message)
     }
 
-    /// Add a field to the log message.
+    /// Add a field to the log message. This operation can fail if the
+    /// log message is already saturated.
     pub fn with_field(
         mut self,
         name: &'static str,
