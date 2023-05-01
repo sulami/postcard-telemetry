@@ -3,6 +3,17 @@
 //! A log message. Log messages are kept as format strings and
 //! parameters, and are assembled on the other side. Credit for this
 //! idea goes to Ferrous System's defmt.
+//!
+//! Use a log message like this:
+//!
+//! ```
+//! # use embedded_imu::log::{Level, LogMessage};
+//! # fn main() -> Result<(), embedded_imu::error::Error> {
+//! let message = LogMessage::new(Level::Info, "The answer is {answer}")
+//!     .with_field("answer", 42)?;
+//! Ok(())
+//! # }
+//! ```
 
 use heapless::LinearMap;
 use serde::Serialize;
@@ -27,6 +38,7 @@ impl LogMessage {
         }
     }
 
+    /// Add a field to the log message.
     pub fn with_field(
         mut self,
         name: &'static str,
