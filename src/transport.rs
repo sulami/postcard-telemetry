@@ -8,7 +8,13 @@
 //! contain deserializable versions of [`crate::log::Log`] and
 //! [`crate::telemetry::TelemetryFrame`] that are nicer to work with
 //! on hosts.
+//!
+//! The included [`Package`] enum changes type depending on the `std`
+//! feature, so that each platform can use the most appropriate type.
+//! They are wire-compatible.
 
+#[cfg(feature = "std")]
+use serde::Deserialize;
 use serde::Serialize;
 
 #[cfg(feature = "std")]
@@ -30,6 +36,23 @@ where
     T: serde::Deserialize<'a>,
 {
     postcard::from_bytes_cobs(buf).map_err(|_| Error::InvalidData)
+}
+
+#[cfg(not(feature = "std"))]
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, Serialize)]
+/// A package that can be sent or received.
+pub enum Package<const N: usize> {
+    Log(crate::log::Log),
+    Telemetry(crate::telemetry::TelemetryFrame<N>),
+}
+
+#[cfg(feature = "std")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+/// A package that can be sent or received.
+pub enum Package {
+    Log(log::Log),
+    Telemetry(telemetry::TelemetryFrame),
 }
 
 #[cfg(test)]
