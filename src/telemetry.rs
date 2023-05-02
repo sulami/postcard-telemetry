@@ -33,7 +33,7 @@
 //!    reporter can be reused in a loop.
 
 use heapless::LinearMap;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
 
@@ -79,7 +79,7 @@ impl<const N: usize> TelemetryReporter<N> {
 pub type TelemetryFrame<const N: usize> = LinearMap<&'static str, DataPoint, N>;
 
 /// A single data point.
-#[derive(Debug, Clone, Copy, Serialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum DataPoint {
     F32(f32),
     I32(i32),

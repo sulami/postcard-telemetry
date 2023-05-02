@@ -7,9 +7,9 @@
 //! Use a log message like this:
 //!
 //! ```
-//! # use embedded_imu::log::LogMessage;
+//! # use embedded_imu::log::Log;
 //! # fn main() -> Result<(), embedded_imu::error::Error> {
-//! let message = LogMessage::info("The answer is {answer}")
+//! let message = Log::info("The answer is {answer}")
 //!     .with_field("answer", 42)?;
 //! # Ok(())
 //! # }
@@ -20,19 +20,19 @@
 //! returned.
 
 use heapless::LinearMap;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
 
 /// A log message.
-#[derive(Debug, Clone, Serialize)]
-pub struct LogMessage {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Log {
     level: Level,
     message: &'static str,
     parameters: LinearMap<&'static str, LogParameter, 8>,
 }
 
-impl LogMessage {
+impl Log {
     /// Create a new log message.
     pub fn new(level: Level, message: &'static str) -> Self {
         Self {
@@ -77,7 +77,7 @@ impl LogMessage {
 }
 
 #[cfg(feature = "std")]
-impl std::fmt::Display for LogMessage {
+impl std::fmt::Display for Log {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut message = self.message.to_string();
         let mut parameters = self.parameters.iter();
@@ -102,7 +102,7 @@ impl std::fmt::Display for LogMessage {
 }
 
 /// A log message level.
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum Level {
     Debug,
     Info,
@@ -123,7 +123,7 @@ impl std::fmt::Display for Level {
 }
 
 /// A log message parameter.
-#[derive(Debug, Clone, Copy, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum LogParameter {
     String(&'static str),
     Float(f32),
@@ -182,7 +182,7 @@ mod tests {
 
     #[test]
     fn test_with_field() {
-        let message = LogMessage::new(Level::Info, "foo {bar}")
+        let message = Log::new(Level::Info, "foo {bar}")
             .with_field("bar", "baz")
             .unwrap();
         assert_eq!(message.parameters.len(), 1);
@@ -191,7 +191,7 @@ mod tests {
 
     #[test]
     fn test_with_field_saturated() -> Result<(), Error> {
-        let message = LogMessage::new(Level::Info, "foo {bar}")
+        let message = Log::new(Level::Info, "foo {bar}")
             .with_field("1", "baz")?
             .with_field("2", "baz")?
             .with_field("3", "baz")?
