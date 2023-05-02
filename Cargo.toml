@@ -16,4 +16,4 @@ serde = { version = "1.0", default_features = false }
 
 [features]
 print = ["dep:libc-print"]
-std = []
+std = ["serde/std"]

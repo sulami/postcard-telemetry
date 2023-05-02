@@ -1,10 +1,20 @@
-//! Transport layer for sending and receiving messages.
+//! Transport layer for sending and receiving messages
 //!
 //! The transport layer is designed to be used with a
 //! [COBS](https://en.wikipedia.org/wiki/Consistent_Overhead_Byte_Stuffing)
 //! encoding layer.
+//!
+//! If the `std` feature is enabled, submodules are exposed which
+//! contain deserializable versions of [`crate::log::Log`] and
+//! [`crate::telemetry::TelemetryFrame`] that are nicer to work with
+//! on hosts.
 
 use serde::Serialize;
+
+#[cfg(feature = "std")]
+pub mod log;
+#[cfg(feature = "std")]
+pub mod telemetry;
 
 use crate::error::Error;
 
