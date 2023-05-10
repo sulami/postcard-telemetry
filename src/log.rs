@@ -7,8 +7,8 @@
 //! Use a log message like this:
 //!
 //! ```
-//! # use embedded_imu::log::Log;
-//! # fn main() -> Result<(), embedded_imu::error::Error> {
+//! # use postcard_telemetry::log::Log;
+//! # fn main() -> Result<(), postcard_telemetry::error::Error> {
 //! let message = Log::info("The answer is {answer}")
 //!     .with_field("answer", 42)?;
 //! # Ok(())

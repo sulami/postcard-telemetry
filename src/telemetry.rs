@@ -15,8 +15,8 @@
 //! The model this is designed for works like this:
 //!
 //! ```
-//! # use embedded_imu::telemetry::{TelemetryReporter, DataPoint};
-//! # fn main() -> Result<(), embedded_imu::error::Error> {
+//! # use postcard_telemetry::telemetry::{TelemetryReporter, DataPoint};
+//! # fn main() -> Result<(), postcard_telemetry::error::Error> {
 //! let mut reporter = TelemetryReporter::<32>::new();
 //! reporter.record("g", 9.81).unwrap();
 //! let report = reporter.report();
